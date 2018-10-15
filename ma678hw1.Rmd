@@ -1,0 +1,261 @@
+---
+title: "hw1_ma678"
+author: "Yifu Dong"
+date: "September 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+
+library(ggplot2)
+library(graphics)
+library(lmtest)
+library(base)
+library(arm)
+library(car)
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+```{r}
+```
+
+##Part1: Pyth!
+###Situation
+```{r}
+gelman_example_dir<-"http://www.stat.columbia.edu/~gelman/arm/examples/"
+pyth <- read.table (paste0(gelman_example_dir,"pyth/exercise2.1.dat"),
+                    header=T, sep=" ")
+```
+The folder pyth contains outcome `y` and inputs `x1`, `x2` for 40 data points, with a further 20 points with the inputs but no observed outcome. Save the file to your working directory and read it into R using the `read.table()` function.
+
+###Solution
+1. Use R to fit a linear regression model predicting `y` from `x1`,`x2`, using the first 40 data points in the file. Summarize the inferences and check the fit of your model.
+```{r}
+
+##we have y,x1,x2 data now. lm(data=pyth)
+x1 <- pyth$x1[1:40]
+x2 <- pyth$x2[1:40]
+y <- pyth$y[1:40]
+regress1 <- lm(y~x1+x2)
+summary(regress1)
+##check fit 
+##Residual vs Fitted 
+residualPlots(regress1, terms= ~ 1, fitted=TRUE)
+##overall fit
+marginalModelPlots(regress1,col=rgb(0,0,0,alpha=0.3),col.line = c("green","red"))
+
+#p_value
+#detecting heteroscedasticity
+bptest(regress1)
+```
+
+Notice that bp=6.0448, p_value=0.048<0.05,as well as the graphs, we can say this model is fitted well.
+
+2. Display the estimated model graphically as in (GH) Figure 3.2.
+```{r}
+regress1 <- lm(y~x1+x2,data=pyth) ##regress 
+par(mfrow = c(2, 2))  
+##qqplot
+qqplot(x=0.5418*x1+0.8069*x2,y=y)
+##Fitted vs Actual
+par (mar=c(10,3,2,1), mgp=c(2,.7,0), tck=-.01)
+plot(pyth$y[1:40],fitted(regress1),xlab="actual value",ylab="fitted values")
+##abline
+plot(y~x1);abline(lm(y~x1))
+plot(y~x2);abline(lm(y~x2))
+```
+
+3. Make a residual plot for this model. Do the assumptions appear to be met?
+```{r}
+plot(resid(regress1))
+fit=fitted(regress1) / resid(regress1)
+plot(fit)
+abline(h=0)
+```
+
+4. Make predictions for the remaining 20 data points in the file. How confident do you feel about these predictions?
+```{r}
+confprediction <- predict(regress1, data.frame(x1=pyth$x1[41:60],x2=pyth$x2[41:60]),level=0.95,interval='confidence') 
+confprediction
+```
+
+
+
+##Part2: Earning and height
+###Situation
+Suppose that, for a certain population, we can predict log earnings from log height as follows:
+
+- A person who is 66 inches tall is predicted to have earnings of $30,000.
+- Every increase of 1% in height corresponds to a predicted increase of 0.8% in earnings.
+- The earnings of approximately 95% of people fall within a factor of 1.1 of predicted values.
+
+###Solution
+1. Give the equation of the regression line and the residual standard deviation of the regression.
+
+From what we know above, we can suppose that the equation is: log(earning)=a+b*log(height)
+So we can code as below:
+```{r}
+
+# find the intercept----a
+alpha = log(30000) - (0.008/0.01) * log(66) 
+height.example = 66
+log.earnings = alpha + (0.008/0.01) * log(height.example) 
+
+#equation
+log.earnings = log(30000) - (0.008/0.01) * log(66) + (0.008/0.01) * log(height.example) 
+# std
+sd =  0.1 * 0.5 /0.95
+sd
+```
+
+2. Suppose the standard deviation of log heights is 5% in this population. What, then, is the $R^2$ of the regression model described here?
+
+Now we have sd=0.05/0.95. Since R2=SSR/SST=1-SSE/SST=1-sd^2/SST, so we have:
+```{r}
+R2 <- 1 - (sd^2 / 0.05^2)
+R2
+```
+
+
+
+##Part3: Beauty and student evaluation
+###Situation
+The folder beauty contains data from Hamermesh and Parker (2005) on student evaluations of instructors' beauty and teaching quality for several courses at the University of Texas. The teaching evaluations were conducted at the end of the semester, and the beauty judgments were made later, by six students who had not attended the classes and were not aware of the course evaluations.
+```{r}
+beauty.data <- read.table (paste0(gelman_example_dir,"beauty/ProfEvaltnsBeautyPublic.csv"), header=T, sep=",")
+```
+
+###Solution
+1. Run a regression using beauty (the variable btystdave) to predict course evaluations (courseevaluation), controlling for various other inputs. Display the fitted model graphically, and explaining the meaning of each of the coefficients, along with the residual standard deviation. Plot the residuals versus fitted values.
+```{r}
+beauty.data <- read.table (paste0(gelman_example_dir,"beauty/ProfEvaltnsBeautyPublic.csv"), header=T, sep=",") #import 
+beauty1 <- lm(beauty.data$btystdave ~ beauty.data$courseevaluation + beauty.data$female + beauty.data$age, data=beauty.data)
+par(mfrow=c(2,2))
+plot(beauty1)
+```
+2. Fit some other models, including beauty and also other input variables. Consider at least one model with interactions. For each model, state what the predictors are, and what the inputs are, and explain the meaning of each of its coefficients.
+```{r}
+beauty2 <- lm(beauty.data$btystdave ~ beauty.data$courseevaluation*beauty.data$female + beauty.data$age, data=beauty.data)
+par(mfrow=c(2,2))
+plot(beauty2)
+```
+
+
+
+##Part4:Conceptula excercises on statistical significance 
+###Situation
+In this exercise you will simulate two variables that are statistically independent of each other to see what happens when we run a regression of one on the other.  
+
+
+###Solution 
+1. First generate 1000 data points from a normal distribution with mean 0 and standard deviation 1 by typing in R. Generate another variable in the same way (call it var2).
+
+```{r, eval=FALSE}
+var1 <- rnorm(1000,0,1)
+var2 <- rnorm(1000,0,1)
+```
+
+Run a regression of one variable on the other. Is the slope coefficient statistically significant? [absolute value of the z-score(the estimated coefficient of var1 divided by its standard error) exceeds 2]
+
+```{r, eval=FALSE}
+fit  <- lm (var2 ~ var1)
+z.scores <- coef(fit)[2]/se.coef(fit)[2]
+z.scores
+```
+-0.426<2, so we can conclude that the slope coef is not statistically significant.
+
+2. Now run a simulation repeating this process 100 times. This can be done using a loop. From each simulation, save the z-score (the estimated coefficient of var1 divided by its standard error). If the absolute value of the z-score exceeds 2, the estimate is statistically significant. Here is code to perform the simulation:
+
+```{r}
+z.scores <- rep (NA, 100) 
+for (k in 1:100) {
+  var1 <- rnorm (1000,0,1)
+  var2 <- rnorm (1000,0,1)
+  fit  <- lm (var2 ~ var1)
+  z.scores[k] <- coef(fit)[2]/se.coef(fit)[2]
+}
+```
+How many of these 100 z-scores are statistically significant? 
+What can you say about statistical significance of regression coefficient?
+
+```{r}
+
+length(which(z.scores>2))
+```
+It means there are 1 out of there 100 z-scores are statistically significant, which means under 95% confidence level. So we believe that the slope is statistically significant at 5% level.
+
+
+
+##Part 5: Fit regression removing the effect of other variables
+###Situation
+Consider the general multiple-regression equation
+$$Y=A+B_1 X_1 + B_2 X_2 +\cdots + B_kX_k+E$$
+An alternative procedure for calculating the least-squares coefficient $B_1$ is as follows:
+
+1. Regress $Y$ on $X_2$ through $X_k$, obtaining residuals $E_{Y|2,\dots,k}$.
+2. Regress $X_1$ on $X_2$ through $X_k$, obtaining residuals $E_{1|2,\dots,k}$.
+3. Regress the residuals $E_{Y|2,\dots,k}$ on the residuals $E_{1|2,\dots,k}$.  The slope for this simple regression is the multiple-regression slope for $X_1$ that is, $B_1$.
+
+
+###Solution
+(a) Apply this procedure to the multiple regression of prestige on education, income, and percentage of women in the Canadian occupational prestige data, confirming that the coefficient for education is properly recovered.
+```{r}
+fox_data_dir<-"http://socserv.socsci.mcmaster.ca/jfox/Books/Applied-Regression-3E/datasets/"
+Prestige<-read.table(paste0(fox_data_dir,"Prestige.txt"))
+fifthregress <- lm(Prestige$prestige~Prestige$education+Prestige$income+Prestige$women,data=Prestige)
+summary(fifthregress)
+```
+
+From the summary we can notice that the coeffcient of education is 4.187,at the same time the standard deviation is 0.3887, t_value is 10.78, which is relatively high, p_value is less than 2e-16.
+So we can say that the coefficient of education is properly recovered.
+
+(b)The intercept for the simple regression in step 3 is 0.  Why is this the case?
+
+For this question, the first process which Regress Y on X2 through Xk will get the residual. We can know that the residual of Y will be a list of data consist of (Y-Yhat)
+The third process is to regress the residual Ey on residual Ex1. When X1 equals 0, where we can get the intercept, the value of Y is the exception the the residual.
+In this case, the residual Ey= 0, so the intercept for the simple regression in step 3 is 0.
+
+(c)In light of this procedure, is it reasonable to describe $B_1$ as the "effect of $X_1$ on $Y$ when the influence of $X_2,\cdots,X_k$ is removed from both $X_1$ and $Y$"?
+
+I think this statement is true. Because the first step and the second step is actually remove the influence of X2,⋯,Xk on X1 and Y, because the residual means (Y-Yhat), where Yhat is equal to B2 X2 + ⋯ + Bk Xk
+So, we can say like this.
+
+(d)The procedure in this problem reduces the multiple regression to a series of simple regressions ( in Step 3). Can you see any practical application for this procedure?
+
+When in a situation where there are many factors influencing the result, we can use this procedure to find the specific influence of the factor we want to research on the result.
+For example, we want to know whether there is a gender discrimination on people's income.
+But there are many factors influencing the income of male and female, not only we should consider the gender, but other factors should be included in this model,like the type of jobs female and male dominate, the different age group of male and female, etc.
+So we can simply use this way to find how much influence does "gender" have.
+
+
+
+##Part 6: Partial correlation
+###Situation
+The partial correlation between $X_1$ and $Y$ "controlling for" $X_2,\cdots,X_k$ is defined as the simple correlation between the residuals $E_{Y|2,\dots,k}$ and $E_{1|2,\dots,k}$, given in the previous exercise. The partial correlation is denoted $r_{y1|2,\dots, k}$.
+
+###Solution
+1. Using the Canadian occupational prestige data, calculate the partial correlation between prestige and education, controlling for income and percentage women.
+```{r}
+#(1)from the hint, we firstly try to find residuals EY|2,...,k. So we regress prestige on income and percentage women.
+education <- Prestige$education
+income <- Prestige$income
+women <- Prestige$women
+prestige <- Prestige$prestige
+Y <- lm(prestige~income+women)
+EY <- prestige-0.003334*income-0.132623*women
+#then we regress education on income and percentage women.
+X1 <- lm(education~income+women)
+E1 <- education-0.0004826*income-0.0338047*women 
+r <- cor(EY,E1)
+r
+#we can calculate that r is equal to 0.7362604
+```
+
+2. In light of the interpretation of a partial regression coefficient developed in the previous exercise, why is $r_{y1|2,\dots, k}=0$ if and only if $B_1$ is 0?
+
+When r=0, it means Y and X1 are not related, which means Y and X1 are independant. 
+So if we want  ry1|2,...,k = 0,  we have to change B1 so that X1 and Y are independant.
+So ry1|2,...,k = 0 if and only if B1 is 0.
+
+
